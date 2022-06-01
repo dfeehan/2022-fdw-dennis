@@ -1,0 +1,519 @@
+---
+title: "Day 1: Population dynamics and stable population theory"
+author: "Berkeley Formal Demography Workshop"
+date: "5/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# run this chunk first!
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+In this notebook, we will be exploring some of the concepts on population projection and stable population theory covered in the lecture. 
+
+## Section I: Introduction to the data
+
+The aim of the first section of this lab is to introduce you to the dataset that we'll be using.
+
+The dataset has values for $_nL_x$ (person-years lived between ages $x$ and $x+n$), $_nF_x$ (age-specific fertility) and $_nK_x$ (population between ages $x$ and $x+n$) for six countries, which have different types of mortality, fertility and age structures:
+
+- Australia 
+- Kenya 
+- Singapore 
+- Niger 
+- Russia
+- Senegal
+
+Data are for females in 2015 and were obtained from the [World Health Organisation](http://apps.who.int/gho/data/node.main.687?lang=en) ($_nL_x$) and [United Nations Population Division](https://esa.un.org/unpd/wpp/) ($_nF_x$ and $_nK_x$). 
+
+```{r}
+d <- read_csv("bfdw_projection_data.csv")
+```
+
+Throughout this lab, we'll be making use of the `%>%` operator. This is like a 'pipe', which takes whatever is on the left hand side and feeds it forward into a function. For example, below we are taking our data `d`, filtering it to only include Australia, and then printing the head (the first six rows).
+
+```{r}
+d %>% 
+  filter(country=="Australia") %>% 
+  head
+```
+
+Notice that:
+
+- The magnitude of $_nL_x$ values suggests a radix of 100,000
+- $_nF_x$ is the age-specific birth rate per 1,000 women
+- $_nK_x$ is age-specific population in 000s
+
+To save trouble later, let's change $_nL_x$ to have a radix of 1, and $_nF_x$ to have units births per woman. 
+
+```{r}
+d <- d %>% 
+  mutate(nLx = nLx/10^5, 
+         nFx = nFx/1000)
+```
+
+
+### Person-years lived: $_nL_x$
+
+Let's investigate the values of $_nL_x$ by country. First, let's calculate the life expectancy at birth, $e_0$, for all countries. Remember that $$e_0 = \frac{\sum {_nL_x}}{l_0}$$
+
+To calculate in R we can use `group_by` to do the calculation separately for each country.
+
+```{r}
+# calculate life expectancy at birth 
+# we know radix is 1
+radix <- 1
+
+d %>% 
+  group_by(country) %>% 
+  summarise(e0 = sum(nLx)/radix) %>%
+  arrange(e0) # arrange by increasing life expectancy
+```
+
+There is more than 23 years difference in the life expectancy at birth for females in Niger compared to Singapore. 
+
+### Fertility rates: $_nF_x$
+
+We can use the age-specific fertility rates to calculate some summary fertility measures for each country. Note that we will assume that the proportion of babies that are female (fraction of females at birth) is 0.4886. Using the information we have, we can calculate the total fertility rate (TFR), gross reproduction ratio (GRR) and net reproduction ratio (NRR). We can also calculate the mean age at childbearing ($\mu$). Remember that
+$$ TFR = \sum {_nF_x} \cdot n$$
+$$ GRR = TFR \cdot f_{fab}$$
+$$NRR = \frac{\sum {_nF_x}\cdot {_nL_x} \cdot f_{fab}}{l_0} $$
+$$
+\mu = \frac{\sum (x+2.5)\cdot {_nF_x}\cdot {_nL_x}}{\sum \cdot {_nF_x}\cdot {_nL_x}}
+$$
+
+```{r}
+# calculate TFR, GRR and NRR by country
+# set fraction female at birth to be 0.4886
+ffab <- 0.4486
+
+d %>% 
+  filter(age>=15, age < 50) %>% # restrict our dataset to be fertility rates for women aged 15-49
+  group_by(country) %>% 
+  summarise(tfr = sum(nFx*5), 
+            grr = tfr*ffab,
+            nrr = sum(nFx*nLx*ffab/radix),
+            mu = sum((age+2.5)*nFx*nLx)/sum(nFx*nLx)) %>%
+  arrange(tfr)
+```
+
+We can also plot the age-specific fertility rates for each country. 
+
+```{r}
+# create a dataset which only has reproductive ages (15-49)
+d_rpa <- d %>% filter(age >= 15, age < 50)
+
+# plot age-specific fertility rates
+ggplot(data = d_rpa, aes(x = age, y = nFx, color = country)) + 
+  geom_line()+
+  ylab("Age-specific fertility rate (births/woman)")+
+  ggtitle("Age-specific fertility rate by country")+ 
+  scale_color_brewer(palette="Set1") + 
+  theme_minimal(base_size = 12) ## change ggplot default theme
+```
+We can also plot the proportion of the population in each age group. This is like half of a population pyramid (the female half). First we need to calculate the proportion in each age group from the raw numbers.
+
+```{r}
+# let's calculate the proportion in each age group so we can compare across countries
+d <- d %>% 
+  group_by(country) %>%
+  mutate(nCx = nKx/sum(nKx))
+```
+
+```{r}
+ggplot(d, aes(x = age, y = nCx)) + 
+  facet_wrap(~country, ncol=3) +
+  geom_bar(stat="identity", position = "dodge") +
+  ggtitle("Proportion of population in each age group") +
+  ylab("proportion")+
+  coord_flip()
+```
+
+## Section II: Population Projections
+
+In this section, we will do a population projection exercise using the fertility, mortality and population data from the dataset from the first section of this lab. We will then compare these results to the growth rate and population structure implied by stable population theory. 
+
+We will use the same data from the earlier exercises. 
+
+### Leslie matrices
+
+We need to create a Leslie matrix which contains the fertility and survivorship information in order to project a population forward. Elements in the top line of the Leslie matrix are equal to 
+$$
+_nL_0 \cdot \frac{1}{2}(_nF_x + {_nF_{x+n}}\cdot\frac{_nL_{x+n}}{_nL_x}) \cdot F_{fab}
+$$
+and the subdiagonals are equal to
+$$
+\frac{_nL_{x+n}}{_nL_x}
+$$
+Below is a function that helps to create a Leslie matrix. It takes four inputs: 
+
+- a vector of $_nL_x$ values
+- a vector of $_nF_x$ values
+- the number of age groups. By default this is 10, because we are considering the five year age groups from ages 0--50.
+- The fraction female at birth, which is set to a default value of 0.4886. 
+
+With these inputs, the function `leslie` creates a square matrix with dimension equal to `n_age_groups` and fills in the top row and subdiagonal according to the equations above. 
+
+```{r}
+## function to define Leslie matrix, based on nLx and nFx values
+leslie <- function(nLx,
+                   nFx, 
+                   n_age_groups=10,
+                   ffab = 0.4886){
+  L = matrix(0, nrow = n_age_groups, ncol = n_age_groups)
+  L[1,] = ffab * nLx[1]*(nFx[1:n_age_groups]+nFx[2:(n_age_groups+1)]*nLx[2:(n_age_groups+1)]/nLx[1:n_age_groups])/2 # top row 
+  diag(L[2:n_age_groups,1:(n_age_groups-1)]) = nLx[2:n_age_groups] / nLx[1:(n_age_groups-1)] # subdiagonal
+  return(L)
+}
+```
+
+We can use this function to create a Leslie matrix using the $_nL_x$ and $_nF_x$ values for Australia:
+
+```{r}
+LAA <- leslie(nLx = d$nLx[d$country=="Australia"], 
+              nFx = d$nFx[d$country=="Australia"])
+#LAA <- leslie(nLx = d$nLx[d$country=="Niger"], 
+#              nFx = d$nFx[d$country=="Niger"])
+LAA
+```
+
+We could also use $_nL_x$ and $_nF_x$ values for any combination of the different countries, for example, $_nL_x$ values from Australia and $_nF_x$ from Senegal:
+
+```{r}
+LAS <- leslie(nLx = d$nLx[d$country=="Australia"], 
+              nFx = d$nFx[d$country=="Senegal"])
+```
+
+
+### Project the population 
+We can now use the Leslie matrices to project a population forward in time. Let's start with the Australia-only Leslie matrix and project forward Australia's 2015 population 250 years. Note that because we are using five-year age groups, the population projection happens in five-year steps. 
+
+```{r}
+n_age_groups <- 10 # 0-50 in 5yr age groups
+n_projections <- 50 # want to project forward 50*5 = 250 years
+initial_pop <- d$nKx[d$country=="Australia"] # set initial population to be Australia's population in 2015
+# define population matrix K
+K <- matrix(0, nrow = n_age_groups, ncol = n_projections+1)
+K[,1] <- initial_pop[1:n_age_groups]
+
+# do the projection!
+for(i in 2:(n_projections+1)){
+  K[,i] <- LAA%*%K[,i-1] 
+}
+
+head(K[,1:5])
+```
+
+Now we have a matrix of populations by age for Australia projected into the future. We can use these numbers to investigate:
+
+- The total population over time
+- The share of the population in each age group over time
+- The population growth rate over time
+
+First, let's get the matrix `K` in a form that's a bit easier to plot. This involves making `K` into a dataframe in 'long' format, so that every row refers to a different year and age combination. 
+
+```{r}
+# get K in a form that's easier to ggplot
+# make into a dataframe, name columns as years and add an age column
+Kdf <- as.data.frame(K)
+colnames(Kdf) <- seq(from = 2015, to = (2015+n_projections*5), by = 5)
+Kdf <- cbind(age = seq(from = 0, to = 45, by = 5), Kdf)
+
+# get in long format and then add proportion of population in each age group
+Klong <- Kdf %>% 
+  gather(year, population, -age) %>%
+  group_by(year) %>%
+  mutate(proportion = population/sum(population), 
+         age = as.factor(age))
+head(Klong)
+```
+Create a data frame that has the total population by year, and calculate the annual growth rate based on the equation
+
+$$
+K(t+5) = K(t) \cdot e^{5R}
+$$
+So
+$$
+R = \frac{1}{5} \cdot \log \frac{K(t+5)}{K(t)}
+$$
+
+```{r}
+# total population by year
+tot_pop <- Klong %>% 
+  group_by(year) %>%
+  summarise(pop = sum(population)) %>%
+  mutate(R = c(NA, log(pop[2:n()]/pop[1:(n()-1)])/5))
+head(tot_pop)
+```
+
+Now we can plot total population, growth rate, and proportion in each age group over time.  
+
+```{r}
+
+# plot total population over time 
+ggplot(data = tot_pop, aes(x = year, y = pop, group = 1)) +
+  geom_point() + geom_line()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Total population over time")
+
+# plot growth rate over time
+ggplot(data = tot_pop, aes(x = year, y = R, group = 1)) +
+  geom_point() + geom_line()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Growth rate of population over time")
+
+# plot proportion in each age group over time
+ggplot(data = Klong, aes(x = year, y = proportion, group = age, color = age)) +
+  geom_point() + geom_line()+ 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Proportion of population in each age group over time")
+```
+
+
+### Stable population quantities 
+
+We can do an eigen-decomposition of the Leslie Matrix to get the values of the stable growth rate $r$ and stable population age structure. If we compare these values to the values of the growth rate $R$ and population age structure in the final projection period, you can see that they are very similar. 
+
+```{r}
+eigen.AA <- eigen(LAA)
+r.AA <- log(Re(eigen.AA$value[1]))/5 
+v <- Re(eigen.AA$vectors[,1])
+k.AA <- v/sum(v)
+
+# compare stable population rate and rate at end of projection period
+cbind(stable = r.AA,  proj = tot_pop$R[nrow(tot_pop)])
+
+# compare stable population age distribution and age distribution at end of projection period
+cbind(stable = k.AA, proj = Klong$proportion[Klong$year==(2015+n_projections*5)])
+
+```
+
+```{r}
+ages <- seq(0, 45, by = 5)
+ggplot(data = data.frame(age = ages, proportion = k.AA), aes(x = age, y = proportion))+
+  geom_bar(stat = 'identity')+
+  coord_flip()+
+  ggtitle("Stable age population structure")
+```
+
+
+### Section II Exercises
+
+1. Would you expect a population projection for Niger to converge to the stable properties more quickly or slowly than Australia? Why? Repeat the projection exercise for Niger to see what happens.
+
+2. Investigate how different fertility and mortality situations affect the stable population characteristics. Obtain eigendecompositions of different combinations of high and low fertility/mortality countries and look at the implied growth rates and population age structures. 
+
+## Section III: Social Contact Matrices and Infectious Disease Models
+
+In this section, we'll explore social contact matrices. What is a contact matrix? Let's assume the population has been divided into $a$ discrete age groups. Let $c_{ij}$ be the average number of contacts that a person in age group $i$ has with people in age group $j$ over a given time period. The contact matrix $C = (c_{ij})$ is the $a \times a$ matrix where each entry of the expected number of contacts between each pair of age groups.
+
+Why do researchers work with age-structured contact matrices? Most fundamentally, age-specific interpersonal contact patterns determine the trajectory of outbreaks of directly transmitted pathogens (e.g., COVID-19). Contact matrices are also a key input in mathematical disease models. 
+
+We will use social contact data from the [Berkeley Interpersonal Contact Study](https://www.nature.com/articles/s41467-021-20990-2), which has been collecting data on interpersonal contact over the course of the pandemic. Here, we'll focus on contact data collected in April 2020 from two states: Iowa and Washington. The dataset contains the following variables: 
+
+- `ego_age`: the ego age group   
+- `alter_age`: the alter age group
+- `avg_contacts`: the mean number of contacts a person in the ego age group had to people in the alter age group (in past 24 hours)
+- `state`: US state (Washington or Iowa) 
+
+```{r}
+## read in contact data 
+contact_data <- data.frame(
+  stringsAsFactors = FALSE,
+  alter_age = c("[0,18)","[0,18)","[0,18)",
+                "[0,18)","[0,18)","[0,18)","[0,18)","[18,25)",
+                "[18,25)","[18,25)","[18,25)","[18,25)","[18,25)","[25,35)",
+                "[25,35)","[25,35)","[25,35)","[25,35)","[25,35)",
+                "[35,45)","[35,45)","[35,45)","[35,45)","[35,45)",
+                "[35,45)","[45,55)","[45,55)","[45,55)","[45,55)",
+                "[45,55)","[45,55)","[55,65)","[55,65)","[55,65)",
+                "[55,65)","[55,65)","[55,65)","[65,100]","[65,100]",
+                "[65,100]","[65,100]","[65,100]","[65,100]","[18,25)",
+                "[25,35)","[35,45)","[45,55)","[55,65)","[65,100]",
+                "[0,18)","[0,18)","[0,18)","[0,18)","[0,18)","[0,18)",
+                "[0,18)","[18,25)","[18,25)","[18,25)","[18,25)",
+                "[18,25)","[18,25)","[25,35)","[25,35)","[25,35)",
+                "[25,35)","[25,35)","[25,35)","[35,45)","[35,45)","[35,45)",
+                "[35,45)","[35,45)","[35,45)","[45,55)","[45,55)",
+                "[45,55)","[45,55)","[45,55)","[45,55)","[55,65)",
+                "[55,65)","[55,65)","[55,65)","[55,65)","[55,65)",
+                "[65,100]","[65,100]","[65,100]","[65,100]","[65,100]",
+                "[65,100]","[18,25)","[25,35)","[35,45)","[45,55)",
+                "[55,65)","[65,100]"),
+  ego_age = c("[0,18)","[35,45)","[18,25)",
+              "[25,35)","[45,55)","[55,65)","[65,100]","[35,45)",
+              "[18,25)","[25,35)","[45,55)","[55,65)","[65,100]",
+              "[35,45)","[18,25)","[25,35)","[45,55)","[55,65)",
+              "[65,100]","[35,45)","[18,25)","[25,35)","[45,55)",
+              "[55,65)","[65,100]","[35,45)","[18,25)","[25,35)",
+              "[45,55)","[55,65)","[65,100]","[35,45)","[18,25)",
+              "[25,35)","[45,55)","[55,65)","[65,100]","[35,45)",
+              "[18,25)","[25,35)","[45,55)","[55,65)","[65,100]","[0,18)",
+              "[0,18)","[0,18)","[0,18)","[0,18)","[0,18)",
+              "[0,18)","[35,45)","[18,25)","[25,35)","[45,55)",
+              "[55,65)","[65,100]","[35,45)","[18,25)","[25,35)","[45,55)",
+              "[55,65)","[65,100]","[35,45)","[18,25)","[25,35)",
+              "[45,55)","[55,65)","[65,100]","[35,45)","[18,25)",
+              "[25,35)","[45,55)","[55,65)","[65,100]","[35,45)",
+              "[18,25)","[25,35)","[45,55)","[55,65)","[65,100]",
+              "[35,45)","[18,25)","[25,35)","[45,55)","[55,65)",
+              "[65,100]","[35,45)","[18,25)","[25,35)","[45,55)",
+              "[55,65)","[65,100]","[0,18)","[0,18)","[0,18)","[0,18)",
+              "[0,18)","[0,18)"),
+  state = c("Iowa","Iowa","Iowa","Iowa","Iowa",
+            "Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa",
+            "Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa",
+            "Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa",
+            "Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Iowa",
+            "Iowa","Iowa","Iowa","Iowa","Iowa","Iowa","Washington",
+            "Washington","Washington","Washington",
+            "Washington","Washington","Washington","Washington","Washington","Washington","Washington",
+            "Washington","Washington","Washington","Washington","Washington", "Washington","Washington","Washington",
+            "Washington","Washington","Washington","Washington", "Washington","Washington",
+            "Washington","Washington","Washington","Washington","Washington",
+            "Washington","Washington", "Washington","Washington","Washington","Washington","Washington",
+            "Washington", "Washington","Washington","Washington","Washington", "Washington","Washington",
+            "Washington", "Washington","Washington","Washington","Washington"),
+  avg_contacts = c(1.96355865075412,
+                   1.07790278376977,0.846004352438355,1.25872430861939,
+                   0.856510337330594,0.283046641676595,0.103733294413363,
+                   0.520884363375575,2.89924081331928,0.799656186032481,
+                   0.541806519198463,0.293628014593759,0.168317120672265,1.10939850263363,
+                   0.970173425755095,2.29066969762187,0.706785631862259,
+                   0.517604165576141,0.332388336966515,2.3915300439597,
+                   0.600961347389168,1.05498606110888,0.885540297483235,
+                   0.585549244618107,0.303659625641791,0.932109063584607,
+                   0.657972659382363,0.707465490742922,1.45268153797397,
+                   0.660202277518944,0.294450038109138,0.65051855766295,
+                   0.376356112153727,0.546831059814438,0.696810813389629,
+                   0.987824394701072,0.411559114570664,0.419786640822864,
+                   0.268457211094917,0.43696483084501,0.386718344800324,
+                   0.512126819771215,0.795187584529312,0.373597394030026,
+                   0.674385049219153,0.549181696022704,0.459332813407329,
+                   0.160210410124759,0.0730627799228152,1.08669597261484,
+                   1.25292308158473,0.797696476263686,1.09896801915227,
+                   0.774099268925644,0.316942675609594,0.133045284839802,
+                   0.237978826422459,1.32149144073559,0.351105050032515,
+                   0.276594819959561,0.205780509393844,0.0954807846997501,
+                   0.604310003842793,0.575734619243985,1.21848144580133,
+                   0.370019430439582,0.323342743883215,0.207709023733976,
+                   1.45446289422518,0.346937110312083,0.537263025647986,
+                   0.542291526093321,0.387640440740019,0.220904109649164,
+                   0.531104772928663,0.394915215687221,0.322180377724249,
+                   0.770546174690304,0.415008863029254,0.233243729370475,
+                   0.37983125755873,0.293953272223552,0.281677340714602,
+                   0.415213636487433,0.693203608564507,0.301820892190442,
+                   0.246118895036495,0.155084923122772,0.205742349729577,
+                   0.265340627452728,0.343185426450645,0.60028694161922,
+                   0.322555475126993,0.728680365204508,0.738590288300677,
+                   0.446913245500217,0.183071831119944,0.087381567624679)
+)
+
+head(contact_data)
+```
+
+Let's visualize our contact matrices for Iowa and Washington. Which state do we expect will have higher levels of social contact? 
+
+```{r}
+## plot contact matrices 
+contact_data %>% 
+  ggplot() +
+  geom_tile(aes(x = ego_age, y = alter_age, fill = avg_contacts)) +
+  coord_equal() +
+  viridis::scale_fill_viridis(name = str_wrap("Contacts per respondent", width = 10)) +
+  facet_grid(~state) +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = .3)) +
+  labs(
+    title = "Social Contact Matrices (April 2020)",
+    x = "Ego age",
+    y = "Alter age"
+  )
+```
+
+We can see two clear patterns in this plot. First, levels of contact are generally higher in Iowa than in Washington. Second, in both states there are higher values in the leading diagonal, suggesting that contact patterns are highly assortative by age category — that is, people have more conversational contacts close to them in age.
+
+### Summarizing Contact Intensity 
+
+The leading eigenvalue of a contact matrix is a summary measure of the overall levels of contact implied by a contact matrix. 
+
+Our contact data is formatted in a dataframe. To summarize state-level contact intensity, we will manipulate our dataframe into two separate matrices, one for each state. Then, we will calculate the leading eigenvalue of each contact matrix and compare overall contact intensity. 
+
+```{r}
+## Manipulate data.frame into a matrix (Iowa)
+iowa_matrix <- contact_data %>%
+  filter(state == "Iowa") %>% 
+    select(alter_age, ego_age, avg_contacts) %>%
+    arrange(ego_age) %>%
+    pivot_wider(names_from = ego_age, values_from = avg_contacts) %>%
+    column_to_rownames(var = "alter_age") %>%
+    data.matrix()
+
+## Manipulate data.frame into a matrix (Washington)
+washington_matrix <- contact_data %>%
+  filter(state == "Washington") %>% 
+    select(alter_age, ego_age, avg_contacts) %>%
+    arrange(ego_age) %>%
+    pivot_wider(names_from = ego_age, values_from = avg_contacts) %>%
+    column_to_rownames(var = "alter_age") %>%
+    data.matrix()
+
+## calculate leading eigenvalues for Iowa
+eigen_iowa <- eigen(iowa_matrix)$values[1]
+
+## calculate leading eigenvalue for Washington
+eigen_washington <- eigen(washington_matrix)$values[1]
+
+paste0("The leading eigenvalue of the contact matrix for Iowa (", round(eigen_iowa, 3), ") is larger than the leading eigenvalue of the contact matrix for Washington (", round(eigen_washington, 3), "), suggesting that overall contact intensity in Iowa is higher than in Washington.")
+```
+
+The total contact intensity is higher in Iowa than in Washington. What implications does this have for the spread of infectious disease? 
+
+### Infectious Disease Models and $R_0$ 
+
+As we saw in lecture, the social contact matrix is also related the the next generation matrix in infectious disease models. The next generation matrix is a transition matrix (just like the Leslie matrix) and describes the transition between stages (compartments) in the infectious disease model. 
+
+The dominant eigenvalue of the next generation matrix is the basic reproduction number,$R_0$￼, which is the expected number of secondary infections from one infected person in a fully susceptible population.
+
+If we have an age and disease stage structured population model, for respiratory pathogens spread via direct contact (such as SARS-CoV-2) we can define the next generation matrix as:
+
+$$ NGM = D_u \cdot C \cdot D_{dI} $$ 
+
+where:
+
+- $NGM$ is the next generation matrix
+- $D_u$ is a diagonal matrix with diagonal entries $u_i$ representing the probability of a successful transmission for age group $i$, given contact with an infectious individual
+- $C$ is the contact matrix
+- $D_{dI}$ is a diagonal matrix with diagonal entries $dI$ equal to the infectious period
+
+Here's a function for calculating the $R_0$:
+
+```{r}
+## function to calculate R0 from NGM
+u = c(0.39, 0.62, 0.81, 0.83, 0.81, 0.74) * 0.2 # relative susceptibility of each age class * probability of transmission given contact
+compute_R0 = function(u, C){
+  dI <- 5 #recovery period in days 
+  Du <- diag(u, 7)
+  Dy <- diag(dI, 7)
+  NGM <- Du %*% C %*% Dy
+  R0  <- abs(eigen(NGM)$values[1])
+  return(R0)
+}
+```
+
+Now let's use the function to calculate $R_0$ for Iowa and Washington:
+
+```{r}
+compute_R0(u, iowa_matrix)
+compute_R0(u, washington_matrix)
+```
+
+We can conclude that the $R_0$ for a COVID-19 like diseases is much higher in Iowa than in Washington based on the social contact data.
+
+### Section III Exercises
+
+1. What does an increase in contact among school age children (in either Iowa or Washington) imply for disease transmission? What about if susceptibility didn't vary by age ($u$ is constant over age)?
+2. What impact does a longer infectious period have on $R_0$?
+
