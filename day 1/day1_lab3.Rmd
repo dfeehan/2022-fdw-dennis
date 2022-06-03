@@ -1,0 +1,468 @@
+---
+title: "Day 1, Lab 3"
+output: html_notebook
+---
+
+TODO
+
+* document r_away_from_stable
+* write intro
+* eigen-decomposition
+* check that growth rate agrees
+* check that stable age distn agrees
+* ? look at spectral gap and time to convergence
+* ? look at momentum
+* ? look at reproductive value
+
+```{r setup, include=FALSE}
+# run this chunk first!
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+
+theme_set(theme_minimal())
+```
+
+## Lab III
+
+In this section, we will TODO
+
+We will use the same data from the earlier exercises. 
+
+```{r}
+d <- read_csv("bfdw_projection_data.csv") %>%
+  # let's quickly repeat a few calculations that we made in Lab 1
+         # change the radix to 1
+  mutate(nLx = nLx/10^5, 
+         # make fertility rates per woman, instead of per 1000 women
+         nFx = nFx/1000) %>%
+  group_by(country) %>%
+         # calculate the fraction of the population in each age group
+  mutate(nCx = nKx/sum(nKx)) %>%
+  ungroup()
+```
+
+And let's also bring the `leslie` function back to calculate the Australian Leslie matrix
+
+```{r}
+## function to define Leslie matrix, based on nLx and nFx values
+leslie <- function(nLx,
+                   nFx, 
+                   n_age_groups=10,
+                   ffab = 0.4886){
+  L = matrix(0, nrow = n_age_groups, ncol = n_age_groups)
+  L[1,] = ffab * nLx[1]*(nFx[1:n_age_groups]+nFx[2:(n_age_groups+1)]*nLx[2:(n_age_groups+1)]/nLx[1:n_age_groups])/2 # top row 
+  diag(L[2:n_age_groups,1:(n_age_groups-1)]) = nLx[2:n_age_groups] / nLx[1:(n_age_groups-1)] # subdiagonal
+  return(L)
+}
+```
+
+Finally, we'll bring the `project` function back too
+
+```{r}
+# summarize the code we developed above in a function
+project_population <- function(n_age_groups = 10,
+                               n_projections = 50,
+                               # the starting population
+                               initial_pop,
+                               # the Leslie matrix
+                               L) {
+  
+  # define population matrix K
+  K <- matrix(0, nrow = n_age_groups, ncol = n_projections+1)
+  K[,1] <- initial_pop[1:n_age_groups]
+  
+  # do the projection!
+  for(i in 2:(n_projections+1)){
+    K[,i] <- L%*%K[,i-1] 
+  }
+  
+  # get K in a form that's easier to ggplot
+  # make into a dataframe, name columns as years and add an age column
+  Kdf <- as.data.frame(K)
+  colnames(Kdf) <- seq(from = 2015, to = (2015+n_projections*5), by = 5)
+  Kdf <- cbind(age = seq(from = 0, to = 45, by = 5), Kdf)
+  
+  # get in long format and then add proportion of population in each age group
+  Klong <- Kdf %>% 
+    gather(year, population, -age) %>%
+    group_by(year) %>%
+    mutate(proportion = population/sum(population), 
+           age = as.factor(age))
+  
+  # summarize the projection with total population and growth rate
+  tot_pop <- Klong %>% 
+    group_by(year) %>%
+    summarise(pop = sum(population)) %>%
+    # this applies the formula for R that we derived above
+    mutate(R = c(NA, log(pop[2:n()]/pop[1:(n()-1)])/5))
+
+  return(list(projection = Klong,
+              tot_pop = tot_pop))
+}
+```
+
+
+Let's create a Leslie matrix using the $_nL_x$ and $_nF_x$ values for Australia:
+
+```{r}
+LAA <- leslie(nLx = d$nLx[d$country=="Australia"], 
+              nFx = d$nFx[d$country=="Australia"])
+LAA
+```
+
+
+### Eigen-decomposition and stable population quantities 
+
+Now we will start to see how linear algebra can tell us about the properties of a stable population.
+We will take the Australian Leslie matrix and use R to perform an eigen-decomposition; that is,
+we will use R to calculate the Leslie matrix's eigenvectors and eigenvalues.
+
+```{r}
+eigen.AA <- eigen(LAA)
+eigen.AA
+```
+
+We see that `eigen` gives us two things: 
+
+* `values`, the eigenvalues of the matrix. These turn out to be sorted from 'biggest' to 'smallest', but we haven't discussed precisely what that means. For now, what's important to know is that the leading eigenvalue is the first one in the list of `values`.
+* `vectors`, a matrix whose columns are the eigenvectors associated with each eigenvalue. (So, the second column of the `vectors` matrix has the eigenvalue that corresponds to the second-biggest eigenvalue)
+
+Let's use the eigendecomposition to calculate two key features of the stable population associated with Australia's Leslie matrix.
+First, we'll look at the growth rate. Recall that
+
+$$\lambda = \exp(rn),$$
+
+where $\lambda$ is the leading eigenvalue of the Leslie matrix, $r$ is the intrinsic growth rate, and $n$ is the length of the projection step.
+Taking logs and rearranging gives
+
+$$r = \log(\lambda)/n.$$
+In other words
+
+```{r}
+# minor detail, safe to ignore:
+# Re(...) takes the real part of the eigenvalue. We know this eigenvalue will be real,
+# but other eigenvalues may be complex, so eigen() gives us a complex number 
+r.AA <- log(Re(eigen.AA$values[1]))/5
+r.AA
+```
+
+This is a small, negative growth rate: $r < 0$ implies long-term population decline.
+
+Next, let's look at the stable age distribution. This is given by the eigenvector associated with the leading eigenvalue.
+(Note that, technically, there are two eigenvectors associated with this eigenvalue: the right and left eigenvector. `eigen` only gives us
+the right eigenvectors, which is what we want here.)
+
+Another technical detail to consider: an eigenvector can be multiplied by any scalar and remain an eigenvector.
+The scaling provided by the output of `eigen` is not necessarily the most useful. So we typically normalize the entries of the
+leading eigenvector to give us the relative size of each age group in the stable population:
+
+```{r}
+# minor detail, safe to ignore:
+# Re(...) takes the real part of the eigenvector values. We know this eigenvector will have all real entries,
+# but other eigenvectors may have complex-valued entries, so the matrix has complex numbers.
+k.AA <- Re(eigen.AA$vectors[,1]/sum(eigen.AA$vectors[,1]))
+k.AA
+```
+
+Now let's compare the results of the eigendecomposition to the results we obtained from
+directly projecting the Leslie matrix.
+
+We'll quickly re-project Australia
+
+```{r}
+proj_AA <- project_population(initial_pop = d$nKx[d$country == 'Australia'],
+                              L =  LAA)
+```
+
+
+
+We can perform an eigendecomposition of the Leslie Matrix to get the values of the stable growth rate $r$ and stable population age structure. If we compare these values to the values of the growth rate $R$ and population age structure in the final projection period, you can see that they are very similar. 
+
+```{r}
+# compare stable population rate and rate at end of projection period
+cbind(stable = r.AA,  proj = proj_AA$tot_pop$R[nrow(proj_AA$tot_pop)])
+
+# compare stable population age distribution and age distribution at end of projection period
+cbind(stable = k.AA, proj = proj_AA$projection$proportion[proj_AA$projection$year==(2015+50*5)])
+
+```
+
+They agree very closely!
+
+```{r}
+ages <- seq(0, 45, by = 5)
+ggplot(data = data.frame(age = ages, proportion = k.AA), aes(x = age, y = proportion))+
+  geom_bar(stat = 'identity')+
+  coord_flip()+
+  ggtitle("Stable age population structure")
+```
+
+## Time to convergence and the damping ratio 
+
+We discussed how the size of the second-biggest eigenvalue, relative to the leading eigenvalue,
+should tell us something about how quickly a population converges to stability.
+In this section, we'll investigate this idea empirically.
+We'll compare the time to convergence for Senegal and for Australia.
+
+First, let's calculate a projection based on Senegal's Leslie matrix.
+
+```{r}
+LSS <- leslie(nLx = d$nLx[d$country=="Senegal"], 
+              nFx = d$nFx[d$country=="Senegal"])
+
+proj_SS <- project_population(initial_pop = d$nKx[d$country == 'Senegal'],
+                              L =  LSS)
+
+LSS
+```
+
+
+And then let's get the eigendecomposition of Senegal's Leslie matrix. 
+
+```{r}
+eigen.SS <- eigen(LSS)
+eigen.SS
+```
+
+Compare time to convergence for Australia and Senegal
+
+```{r}
+compare_r_trajectory <- bind_rows(tibble(year = proj_AA$tot_pop$year,
+                                         R = proj_AA$tot_pop$R,
+                                         country = 'Australia',
+                                         stable_r = log(Re(eigen.AA$values[1]))/5),
+                                  tibble(year = proj_SS$tot_pop$year,
+                                         R = proj_SS$tot_pop$R,
+                                         country = 'Senegal',
+                                         stable_r = log(Re(eigen.SS$values[1]))/5))
+compare_r_trajectory
+```
+
+```{r}
+compare_r_trajectory %>%
+  ggplot(aes(x=year, y=R, color=country, group=country)) +
+  geom_point() + geom_line() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Projected growth rate")
+```
+Let's compare the damping ratios 
+
+```{r}
+damping_ratio <- function(eigen.output) {
+  return(Re(eigen.output$values[1]) / Mod(eigen.output$values[2]))  
+}
+rho.AA <- damping_ratio(eigen.AA)
+rho.SS <- damping_ratio(eigen.SS)
+
+glue::glue("
+           Damping ratio for Australia: {rho.AA}
+           Damping ratio for Senegal: {rho.SS}
+           ")
+```
+
+For this pair of countries, our intuition seems to hold: in Senegal, the damping ratio is bigger,
+suggesting a bigger difference between the magnitude of the leading and second eigenvalues
+and faster convergence to stability.
+
+## Exercises
+
+
+> **Q1**. In the pre-workshop exercises, you investigated what would happen if you
+> multiply the first row of the Leslie matrix by a constant. We'll continue
+> studying this now - but instead of multiplying the entire first row, we're now
+> interested in what will happen if we multiply all of the age-specific fertility
+> rates by a constant (leaving the survival rates unchanged).   
+> Pick a country and
+> try to find a value $\kappa$ that you can multiply all the fertility rates by to
+> produce a *stationary* population. (A stationary population is a special case of
+> a stable population that has zero growth.) Can you explain what the value $\kappa$
+> is? [Hint: it has to do with one of the measures of reproduction]
+
+BEGIN SOLUTION:
+
+We'll pick Senegal.
+
+There are lots of ways to approach this. The simplest way is to remember or
+work out that scaling all age-specific fertility frates by a factor of 1/NRR 
+will produce a stationary population. But you could also use trial and error.
+We'll illustrate trail and error here, then we'll use the NRR.
+
+```{r}
+
+fert_adjustment_factors <- seq(from=0.1, to=2, by=.1) 
+
+adjusted_r <- tibble(adjustment_factor = fert_adjustment_factors,
+                     r = NA)
+
+for(i in 1:length(fert_adjustment_factors)) {
+  
+  kappa <- fert_adjustment_factors[i]
+
+  # Leslie matrix constructed from fertility rates scaled
+  # by a factor kappa 
+  LSSprime <- leslie(nLx = d$nLx[d$country=="Senegal"], 
+                     nFx = kappa * d$nFx[d$country=="Senegal"])
+  
+  # what is the growth rate for this set of fertility rates?
+  LSSprime_r <- log(Re(eigen(LSSprime)$values[1]))/5
+  
+  adjusted_r[i,'r'] <- LSSprime_r
+
+}
+
+# this plot makes it look like multiplying the fertility rates by about
+# 0.4 would produce a stationary population (i.e., instrinsic growth rate r=0)
+
+adjusted_r %>%
+  ggplot(.) +
+  geom_point(aes(x = adjustment_factor, y=r)) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = (1/2.1388976 ))
+```
+
+If you happen to know the NRR result, we can use it directly.
+To check
+
+```{r}
+# we calculated this in lab 1
+nrr_senegal <- 2.1388976 
+
+# set fraction female at birth to be 0.4886
+ffab <- 0.4486
+
+LSSprime <- leslie(nLx = d$nLx[d$country=="Senegal"], 
+                   nFx = (1/nrr_senegal) * d$nFx[d$country=="Senegal"])
+
+# what is the growth rate for this set of fertility rates?
+LSSprime_r <- log(Re(eigen(LSSprime)$values[1]))/5
+LSSprime_r
+```
+
+
+END SOLUTION
+
+> **Q2.** Calculate the damping ratio for the four remaining countries in our dataset
+> (Kenya, Niger, Russia, and Singapore). From the six damping ratios, predict
+> which ones are closest and which are farthest from a stable age structure.
+
+
+BEGIN SOLUTION:
+
+```{r}
+LKK <- leslie(nLx = d$nLx[d$country=="Kenya"], 
+              nFx = d$nFx[d$country=="Kenya"])
+LNN <- leslie(nLx = d$nLx[d$country=="Niger"], 
+              nFx = d$nFx[d$country=="Niger"])
+LRR <- leslie(nLx = d$nLx[d$country=="Russia"], 
+              nFx = d$nFx[d$country=="Russia"])
+# we already used 'S' for Senegal, so we'll use 'P' for Singapore
+LPP <- leslie(nLx = d$nLx[d$country=="Singapore"], 
+              nFx = d$nFx[d$country=="Singapore"])
+
+rho.KK <- damping_ratio(eigen(LKK))
+rho.NN <- damping_ratio(eigen(LNN))
+rho.RR <- damping_ratio(eigen(LRR))
+rho.PP <- damping_ratio(eigen(LPP))
+
+glue::glue("
+           Damping ratio for Australia: {rho.AA}
+           Damping ratio for Senegal:   {rho.SS}
+           Damping ratio for Kenya:     {rho.KK}
+           Damping ratio for Niger:     {rho.NN}
+           Damping ratio for Russia:    {rho.RR}
+           Damping ratio for Singapore: {rho.PP}
+           ")
+```
+
+Based on these, I'd guess that Singapore is slowest to reach stability and Niger is fastest.
+
+Let's check
+
+```{r}
+proj_SS <- project_population(initial_pop = d$nKx[d$country == 'Senegal'],
+                              L =  LSS)
+proj_KK <- project_population(initial_pop = d$nKx[d$country == 'Kenya'],
+                              L =  LKK)
+proj_NN <- project_population(initial_pop = d$nKx[d$country == 'Niger'],
+                              L =  LNN)
+proj_RR <- project_population(initial_pop = d$nKx[d$country == 'Russia'],
+                              L =  LRR)
+proj_PP <- project_population(initial_pop = d$nKx[d$country == 'Singapore'],
+                              L =  LPP)
+```
+
+
+```{r}
+r_away_from_stable <- function(initial_pop,
+                               L,
+                               # we'll use a tolerance of 5 percent
+                               tol=0.05) {
+  
+  
+  proj <- project_population(initial_pop=initial_pop, 
+                             L=L)
+  eigen_out <- eigen(L)
+  
+  # this assumes a time-step of 5 years
+  stable_r <- log(Re(eigen_out$values[1]))/5
+  
+  # for each time step, calculate whether or not we are within tolerance of stable intrinsic growth rate
+  res <- proj$tot_pop %>% 
+    mutate(unstable = as.numeric(abs((R - stable_r)/stable_r) >= tol))
+  
+  # figure out the last year away from stability
+  last_unstable_idx <- ifelse(all(res$unstable[-1] == 0),
+                              0,
+                              max(which(res$unstable == 1)))
+  
+  stable_yr <- ifelse(last_unstable_idx < nrow(proj$tot_pop),
+                      proj$tot_pop$year[last_unstable_idx + 1],
+                      NA_real_)
+  
+  return(stable_yr)
+}
+
+r_away_from_stable(d$nKx[d$country == 'Niger'], LNN)
+```
+
+```{r}
+stableyr.AA <- r_away_from_stable(d$nKx[d$country == 'Australia'], LAA)
+stableyr.SS <- r_away_from_stable(d$nKx[d$country == 'Senegal'], LSS)
+stableyr.KK <- r_away_from_stable(d$nKx[d$country == 'Kenya'], LKK)
+stableyr.NN <- r_away_from_stable(d$nKx[d$country == 'Niger'], LNN)
+stableyr.RR <- r_away_from_stable(d$nKx[d$country == 'Russia'],LRR)
+stableyr.PP <- r_away_from_stable(d$nKx[d$country == 'Singapore'],LPP)
+
+glue::glue("
+           Stable year for Australia: {stableyr.AA}
+           Stable year for Senegal:   {stableyr.SS}
+           Stable year for Kenya:     {stableyr.KK}
+           Stable year for Niger:     {stableyr.NN}
+           Stable year for Russia:    {stableyr.RR}
+           Stable year for Singapore: {stableyr.PP}
+           ")
+```
+
+Compare these more directly
+
+```{r}
+compare_damping <-
+  tribble(~ country, ~ damping_ratio, ~ stable_yr,
+          'Australia', rho.AA, stableyr.AA,
+          'Senegal', rho.SS, stableyr.SS,
+          'Kenya', rho.KK, stableyr.KK,
+          'Niger', rho.NN, stableyr.NN,
+          'Russia', rho.RR, stableyr.RR,
+          'Singapore', rho.PP, stableyr.PP)
+
+compare_damping %>%
+  ggplot(.) +
+  geom_text(aes(x= stable_yr, y=damping_ratio, label=country)) +
+  xlab("Year of approximate stability") +
+  ylab("Damping ratio")
+```
+
+
+It looks like Niger does appear to reach stability the fastest - but Singapore is not the slowest.
+
+END SOLUTION

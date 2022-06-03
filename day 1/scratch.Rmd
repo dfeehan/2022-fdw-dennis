@@ -1,0 +1,29 @@
+---
+title: "Scratch"
+output: html_notebook
+---
+
+Here are miscellaneous scraps that we're not using.
+
+
+
+
+
+## Momentum
+
+Suppose a population's age-specific fertility rates all change by the same factor
+to produce a level of fertility that produces a stationary population, i.e. $r = 0$.
+Depending on the age structure of the population, it may continue to grow (or decline)
+by a fair amount before its size actually stops changing.
+This phenomenon is called *momentum*.
+
+In what is called the Keyfitz scenario, age-specific fertility rates are all multiplied
+by a factor of $1 / NRR$. We'll investigate this scenario here. Let's use Senegal as our example.
+
+We'll start by constructing a Leslie matrix for Senegal based on 
+
+
+
+
+
+

@@ -1,0 +1,157 @@
+---
+title: "Day 1, Lab 1"
+output: html_notebook
+---
+
+TODO
+
+* something about total popn and projecting growth
+
+
+```{r setup, include=FALSE}
+# run this chunk first!
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+In this notebook, we will be exploring some of the concepts on population projection and stable population theory covered in the lecture. 
+
+## Lab I: Introduction to the data and measures of reproduction
+
+The aim of the first section of this lab is to introduce you to the dataset that we'll be using.
+
+The dataset has values for $_nL_x$ (person-years lived between ages $x$ and $x+n$), $_nF_x$ (age-specific fertility) and $_nK_x$ (population between ages $x$ and $x+n$) for six countries, which have different types of mortality, fertility and age structures:
+
+- Australia 
+- Kenya 
+- Singapore 
+- Niger 
+- Russia
+- Senegal
+
+Data are for females in 2015 and were obtained from the [World Health Organisation](http://apps.who.int/gho/data/node.main.687?lang=en) ($_nL_x$) and [United Nations Population Division](https://esa.un.org/unpd/wpp/) ($_nF_x$ and $_nK_x$). 
+
+```{r}
+d <- read_csv("bfdw_projection_data.csv")
+```
+
+Throughout this lab, we'll be making use of the `%>%` operator. This is like a 'pipe', which takes whatever is on the left hand side and feeds it forward into a function. For example, below we are taking our data `d`, filtering it to only include Australia, and then printing the head (the first six rows).
+
+```{r}
+d %>% 
+  filter(country=="Australia") %>% 
+  head
+```
+
+Notice that:
+
+- The magnitude of $_nL_x$ values suggests a radix of 100,000
+- $_nF_x$ is the age-specific birth rate per 1,000 women
+- $_nK_x$ is age-specific population in 000s
+
+To save trouble later, let's change $_nL_x$ to have a radix of 1, and $_nF_x$ to have units births per woman. 
+
+```{r}
+d <- d %>% 
+  mutate(nLx = nLx/10^5, 
+         nFx = nFx/1000)
+```
+
+
+### Person-years lived: $_nL_x$
+
+Let's investigate the values of $_nL_x$ by country. First, let's calculate the life expectancy at birth, $e_0$, for all countries. Remember that $$e_0 = \frac{\sum {_nL_x}}{l_0}$$
+
+To calculate in R we can use `group_by` to do the calculation separately for each country.
+
+```{r}
+# calculate life expectancy at birth 
+# we know radix is 1
+radix <- 1
+
+d %>% 
+  group_by(country) %>% 
+  summarise(e0 = sum(nLx)/radix) %>%
+  arrange(e0) # arrange by increasing life expectancy
+```
+
+There is more than 23 years difference in the life expectancy at birth for females in Niger compared to Singapore. 
+
+### Fertility rates: $_nF_x$
+
+We can use the age-specific fertility rates to calculate some summary fertility measures for each country. Note that we will assume that the proportion of babies that are female (fraction of females at birth) is 0.4886. Using the information we have, we can calculate the total fertility rate (TFR), gross reproduction ratio (GRR) and net reproduction ratio (NRR). We can also calculate the mean age at childbearing ($\mu$). Remember that
+
+$$ TFR = \sum {_nF_x} \cdot n$$
+
+and
+
+$$ GRR = TFR \cdot f_{fab}$$
+and
+
+$$NRR = \frac{\sum {_nF_x}\cdot {_nL_x} \cdot f_{fab}}{l_0}. $$
+
+Finally, the mean age at childbearing is 
+
+$$
+\mu = \frac{\sum (x+2.5)\cdot {_nF_x}\cdot {_nL_x}}{\sum \cdot {_nF_x}\cdot {_nL_x}}.
+$$
+
+```{r}
+# calculate TFR, GRR and NRR by country
+# set fraction female at birth to be 0.4886
+ffab <- 0.4486
+
+d_reproduction <- d %>% 
+  filter(age>=15, age < 50) %>% # restrict our dataset to be fertility rates for women aged 15-49
+  group_by(country) %>% 
+  summarise(tfr = sum(nFx*5), 
+            grr = tfr*ffab,
+            nrr = sum(nFx*nLx*ffab/radix),
+            mu = sum((age+2.5)*nFx*nLx)/sum(nFx*nLx)) %>%
+  arrange(tfr)
+
+d_reproduction
+```
+
+
+We can also plot the age-specific fertility rates for each country. 
+
+```{r}
+# create a dataset which only has reproductive ages (15-49)
+d_rpa <- d %>% filter(age >= 15, age < 50)
+
+# plot age-specific fertility rates
+ggplot(data = d_rpa, aes(x = age, y = nFx, color = country)) + 
+  geom_line()+
+  ylab("Age-specific fertility rate (births/woman)")+
+  ggtitle("Age-specific fertility rate by country")+ 
+  scale_color_brewer(palette="Set1") + 
+  theme_minimal(base_size = 12) ## change ggplot default theme
+```
+
+We can also plot the proportion of the population in each age group. This is like half of a population pyramid (the female half). First we need to calculate the proportion in each age group from the raw numbers.
+
+```{r}
+# let's calculate the proportion in each age group so we can compare across countries
+d <- d %>% 
+  group_by(country) %>%
+  mutate(nCx = nKx/sum(nKx))
+```
+
+Now we can plot the female half of the population pyramid for each country
+
+```{r}
+ggplot(d, aes(x = age, y = nCx)) + 
+  facet_wrap(~country, ncol=3)+
+  geom_bar(stat="identity", position = "dodge")+
+  ggtitle("Proportion of population in each age group")+
+  ylab("proportion")+
+  coord_flip()
+```
+
+
+## Exercises
+
+> Q1. Suppose that the growth rate of
+
+
