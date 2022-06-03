@@ -3,17 +3,6 @@ title: "Day 1, Lab 3"
 output: html_notebook
 ---
 
-TODO
-
-* document r_away_from_stable
-* write intro
-* eigen-decomposition
-* check that growth rate agrees
-* check that stable age distn agrees
-* ? look at spectral gap and time to convergence
-* ? look at momentum
-* ? look at reproductive value
-
 ```{r setup, include=FALSE}
 # run this chunk first!
 knitr::opts_chunk$set(echo = TRUE)
@@ -23,8 +12,6 @@ theme_set(theme_minimal())
 ```
 
 ## Lab III
-
-In this section, we will TODO
 
 We will use the same data from the earlier exercises. 
 

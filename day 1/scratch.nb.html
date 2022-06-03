@@ -1782,10 +1782,41 @@ are all multiplied by a factor of <span class="math inline">\(1 /
 NRR\)</span>. We’ll investigate this scenario here. Let’s use Senegal as
 our example.</p>
 <p>We’ll start by constructing a Leslie matrix for Senegal based on</p>
+</div>
+<div id="for-lab-1" class="section level2">
+<h2>for Lab 1</h2>
+<p>TODO</p>
+<ul>
+<li>something about total popn and projecting growth</li>
+</ul>
+</div>
+<div id="for-lab-2" class="section level2">
+<h2>for Lab 2</h2>
+<p>TODO</p>
+<ul>
+<li>study ergodicity</li>
+<li>study exponential relationship between age group sizes in stable
+popn</li>
+<li>study time it takes to reach stability</li>
+</ul>
+</div>
+<div id="for-lab-3" class="section level2">
+<h2>for Lab 3</h2>
+<p>TODO</p>
+<ul>
+<li>document r_away_from_stable</li>
+<li>write intro</li>
+<li>eigen-decomposition</li>
+<li>check that growth rate agrees</li>
+<li>check that stable age distn agrees</li>
+<li>? look at spectral gap and time to convergence</li>
+<li>? look at momentum</li>
+<li>? look at reproductive value</li>
+</ul>
 <!-- rnb-text-end -->
 </div>
 
-<div id="rmd-source-code">LS0tCnRpdGxlOiAiU2NyYXRjaCIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKSGVyZSBhcmUgbWlzY2VsbGFuZW91cyBzY3JhcHMgdGhhdCB3ZSdyZSBub3QgdXNpbmcuCgoKCgoKIyMgTW9tZW50dW0KClN1cHBvc2UgYSBwb3B1bGF0aW9uJ3MgYWdlLXNwZWNpZmljIGZlcnRpbGl0eSByYXRlcyBhbGwgY2hhbmdlIGJ5IHRoZSBzYW1lIGZhY3Rvcgp0byBwcm9kdWNlIGEgbGV2ZWwgb2YgZmVydGlsaXR5IHRoYXQgcHJvZHVjZXMgYSBzdGF0aW9uYXJ5IHBvcHVsYXRpb24sIGkuZS4gJHIgPSAwJC4KRGVwZW5kaW5nIG9uIHRoZSBhZ2Ugc3RydWN0dXJlIG9mIHRoZSBwb3B1bGF0aW9uLCBpdCBtYXkgY29udGludWUgdG8gZ3JvdyAob3IgZGVjbGluZSkKYnkgYSBmYWlyIGFtb3VudCBiZWZvcmUgaXRzIHNpemUgYWN0dWFsbHkgc3RvcHMgY2hhbmdpbmcuClRoaXMgcGhlbm9tZW5vbiBpcyBjYWxsZWQgKm1vbWVudHVtKi4KCkluIHdoYXQgaXMgY2FsbGVkIHRoZSBLZXlmaXR6IHNjZW5hcmlvLCBhZ2Utc3BlY2lmaWMgZmVydGlsaXR5IHJhdGVzIGFyZSBhbGwgbXVsdGlwbGllZApieSBhIGZhY3RvciBvZiAkMSAvIE5SUiQuIFdlJ2xsIGludmVzdGlnYXRlIHRoaXMgc2NlbmFyaW8gaGVyZS4gTGV0J3MgdXNlIFNlbmVnYWwgYXMgb3VyIGV4YW1wbGUuCgpXZSdsbCBzdGFydCBieSBjb25zdHJ1Y3RpbmcgYSBMZXNsaWUgbWF0cml4IGZvciBTZW5lZ2FsIGJhc2VkIG9uIAoKCgoKCgo=</div>
+<div id="rmd-source-code">LS0tCnRpdGxlOiAiU2NyYXRjaCIKb3V0cHV0OiBodG1sX25vdGVib29rCi0tLQoKSGVyZSBhcmUgbWlzY2VsbGFuZW91cyBzY3JhcHMgdGhhdCB3ZSdyZSBub3QgdXNpbmcuCgoKCgoKIyMgTW9tZW50dW0KClN1cHBvc2UgYSBwb3B1bGF0aW9uJ3MgYWdlLXNwZWNpZmljIGZlcnRpbGl0eSByYXRlcyBhbGwgY2hhbmdlIGJ5IHRoZSBzYW1lIGZhY3Rvcgp0byBwcm9kdWNlIGEgbGV2ZWwgb2YgZmVydGlsaXR5IHRoYXQgcHJvZHVjZXMgYSBzdGF0aW9uYXJ5IHBvcHVsYXRpb24sIGkuZS4gJHIgPSAwJC4KRGVwZW5kaW5nIG9uIHRoZSBhZ2Ugc3RydWN0dXJlIG9mIHRoZSBwb3B1bGF0aW9uLCBpdCBtYXkgY29udGludWUgdG8gZ3JvdyAob3IgZGVjbGluZSkKYnkgYSBmYWlyIGFtb3VudCBiZWZvcmUgaXRzIHNpemUgYWN0dWFsbHkgc3RvcHMgY2hhbmdpbmcuClRoaXMgcGhlbm9tZW5vbiBpcyBjYWxsZWQgKm1vbWVudHVtKi4KCkluIHdoYXQgaXMgY2FsbGVkIHRoZSBLZXlmaXR6IHNjZW5hcmlvLCBhZ2Utc3BlY2lmaWMgZmVydGlsaXR5IHJhdGVzIGFyZSBhbGwgbXVsdGlwbGllZApieSBhIGZhY3RvciBvZiAkMSAvIE5SUiQuIFdlJ2xsIGludmVzdGlnYXRlIHRoaXMgc2NlbmFyaW8gaGVyZS4gTGV0J3MgdXNlIFNlbmVnYWwgYXMgb3VyIGV4YW1wbGUuCgpXZSdsbCBzdGFydCBieSBjb25zdHJ1Y3RpbmcgYSBMZXNsaWUgbWF0cml4IGZvciBTZW5lZ2FsIGJhc2VkIG9uIAoKCiMjIGZvciBMYWIgMQoKVE9ETwoKKiBzb21ldGhpbmcgYWJvdXQgdG90YWwgcG9wbiBhbmQgcHJvamVjdGluZyBncm93dGgKCgojIyBmb3IgTGFiIDIKCgpUT0RPCgoqIHN0dWR5IGVyZ29kaWNpdHkKKiBzdHVkeSBleHBvbmVudGlhbCByZWxhdGlvbnNoaXAgYmV0d2VlbiBhZ2UgZ3JvdXAgc2l6ZXMgaW4gc3RhYmxlIHBvcG4KKiBzdHVkeSB0aW1lIGl0IHRha2VzIHRvIHJlYWNoIHN0YWJpbGl0eQoKIyMgZm9yIExhYiAzCgoKVE9ETwoKKiBkb2N1bWVudCByX2F3YXlfZnJvbV9zdGFibGUKKiB3cml0ZSBpbnRybwoqIGVpZ2VuLWRlY29tcG9zaXRpb24KKiBjaGVjayB0aGF0IGdyb3d0aCByYXRlIGFncmVlcwoqIGNoZWNrIHRoYXQgc3RhYmxlIGFnZSBkaXN0biBhZ3JlZXMKKiA/IGxvb2sgYXQgc3BlY3RyYWwgZ2FwIGFuZCB0aW1lIHRvIGNvbnZlcmdlbmNlCiogPyBsb29rIGF0IG1vbWVudHVtCiogPyBsb29rIGF0IHJlcHJvZHVjdGl2ZSB2YWx1ZQoKCgoKCg==</div>
 
 
 

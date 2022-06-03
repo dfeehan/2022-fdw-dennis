@@ -3,11 +3,6 @@ title: "Day 1, Lab 1"
 output: html_notebook
 ---
 
-TODO
-
-* something about total popn and projecting growth
-
-
 ```{r setup, include=FALSE}
 # run this chunk first!
 knitr::opts_chunk$set(echo = TRUE)
@@ -148,10 +143,5 @@ ggplot(d, aes(x = age, y = nCx)) +
   ylab("proportion")+
   coord_flip()
 ```
-
-
-## Exercises
-
-> Q1. Suppose that the growth rate of
 
 

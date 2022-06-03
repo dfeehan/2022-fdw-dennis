@@ -3,12 +3,6 @@ title: "Day 1, Lab 2"
 output: html_notebook
 ---
 
-TODO
-
-* study ergodicity
-* study exponential relationship between age group sizes in stable popn
-* study time it takes to reach stability
-
 ```{r setup, include=FALSE}
 # run this chunk first!
 knitr::opts_chunk$set(echo = TRUE)
@@ -18,8 +12,6 @@ theme_set(theme_minimal())
 ```
 
 ## Lab II: Population Projections and Stability
-
-### Guided
 
 In this section, we will project a population using the fertility, mortality and population data from the dataset from the first section of this lab. We will then compare these results to the growth rate and population structure implied by stable population theory. 
 

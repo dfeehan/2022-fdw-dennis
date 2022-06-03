@@ -23,6 +23,36 @@ by a factor of $1 / NRR$. We'll investigate this scenario here. Let's use Senega
 We'll start by constructing a Leslie matrix for Senegal based on 
 
 
+## for Lab 1
+
+TODO
+
+* something about total popn and projecting growth
+
+
+## for Lab 2
+
+
+TODO
+
+* study ergodicity
+* study exponential relationship between age group sizes in stable popn
+* study time it takes to reach stability
+
+## for Lab 3
+
+
+TODO
+
+* document r_away_from_stable
+* write intro
+* eigen-decomposition
+* check that growth rate agrees
+* check that stable age distn agrees
+* ? look at spectral gap and time to convergence
+* ? look at momentum
+* ? look at reproductive value
+
 
 
 
