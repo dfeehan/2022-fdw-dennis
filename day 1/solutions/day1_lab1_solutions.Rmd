@@ -160,9 +160,47 @@ ggplot(d, aes(x = age, y = nCx)) +
 > K(2015) = 7,879,000 five years later. Use R to calculate the growth rate $R$ of the
 > population over this interval.
 
+BEGIN SOLUTION:
+
+We can calculate the growth rate from  $K(2015) = \exp(R5)K(2010)$.
+Rearranging, we see that  $\frac{K(2015)}{K(2010)} = \exp(R5)$, or
+$(1/5) [\log(K(2015)) - \log(K(2010))] = R$.
+
+
+```{r}
+K2010 <- 7886000
+K2015 <- 7879000
+  
+growth_rate_R <- (log(K2015) - log(K2010))/5
+growth_rate_R
+```
+
+END SOLUTION
 
 > **Q2.** Given your answer to question (1), in what year would you expect the
 > population to fall below 7 million? 
 
+BEGIN SOLUTION
+
+We want to find $t$ satisfying $7 \times 10^{6} = K(2010) \exp(Rt)$.
+Rearranging and solving for $t$, we have
+$(1/R)[ \log(7 \times 10^6) - \log(K(2010))] = t$.
+
+```{r}
+target_time_span <- (1/growth_rate_R) * ( log(7e6) - log(K2010))
+target_time_span
+```
+
+The actual year is given by this target_time_span plus the starting year, 2010
+
+```{r}
+target_time_span + 2010
+```
+
+This is very far away! This reflects the fact that the growth rate is negative,
+but very small. So it takes a long time for the population to shrink
+
+
+END SOLUTION
 
 

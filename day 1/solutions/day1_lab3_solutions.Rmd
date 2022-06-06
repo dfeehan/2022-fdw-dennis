@@ -271,7 +271,191 @@ and faster convergence to stability.
 > a stable population that has zero growth.) Can you explain what the value $\kappa$
 > is? [Hint: it has to do with one of the measures of reproduction]
 
+BEGIN SOLUTION:
+
+We'll pick Senegal.
+
+There are lots of ways to approach this. The simplest way is to remember or
+work out that scaling all age-specific fertility frates by a factor of 1/NRR 
+will produce a stationary population. But you could also use trial and error.
+We'll illustrate trail and error here, then we'll use the NRR.
+
+```{r}
+
+fert_adjustment_factors <- seq(from=0.1, to=2, by=.1) 
+
+adjusted_r <- tibble(adjustment_factor = fert_adjustment_factors,
+                     r = NA)
+
+for(i in 1:length(fert_adjustment_factors)) {
+  
+  kappa <- fert_adjustment_factors[i]
+
+  # Leslie matrix constructed from fertility rates scaled
+  # by a factor kappa 
+  LSSprime <- leslie(nLx = d$nLx[d$country=="Senegal"], 
+                     nFx = kappa * d$nFx[d$country=="Senegal"])
+  
+  # what is the growth rate for this set of fertility rates?
+  LSSprime_r <- log(Re(eigen(LSSprime)$values[1]))/5
+  
+  adjusted_r[i,'r'] <- LSSprime_r
+
+}
+
+# this plot makes it look like multiplying the fertility rates by about
+# 0.4 would produce a stationary population (i.e., instrinsic growth rate r=0)
+
+adjusted_r %>%
+  ggplot(.) +
+  geom_point(aes(x = adjustment_factor, y=r)) +
+  geom_hline(yintercept = 0) +
+  geom_vline(xintercept = (1/2.1388976 ))
+```
+
+If you happen to know the NRR result, we can use it directly.
+To check
+
+```{r}
+# we calculated this in lab 1
+nrr_senegal <- 2.1388976 
+
+# set fraction female at birth to be 0.4886
+ffab <- 0.4486
+
+LSSprime <- leslie(nLx = d$nLx[d$country=="Senegal"], 
+                   nFx = (1/nrr_senegal) * d$nFx[d$country=="Senegal"])
+
+# what is the growth rate for this set of fertility rates?
+LSSprime_r <- log(Re(eigen(LSSprime)$values[1]))/5
+LSSprime_r
+```
+
+
+END SOLUTION
+
 > **Q2** Calculate the damping ratio for the four remaining countries in our dataset
 > (Kenya, Niger, Russia, and Singapore). From the six damping ratios, predict
 > which ones will converge to stability fastest and which will converge slowest.
 
+
+BEGIN SOLUTION:
+
+```{r}
+LKK <- leslie(nLx = d$nLx[d$country=="Kenya"], 
+              nFx = d$nFx[d$country=="Kenya"])
+LNN <- leslie(nLx = d$nLx[d$country=="Niger"], 
+              nFx = d$nFx[d$country=="Niger"])
+LRR <- leslie(nLx = d$nLx[d$country=="Russia"], 
+              nFx = d$nFx[d$country=="Russia"])
+# we already used 'S' for Senegal, so we'll use 'P' for Singapore
+LPP <- leslie(nLx = d$nLx[d$country=="Singapore"], 
+              nFx = d$nFx[d$country=="Singapore"])
+
+rho.KK <- damping_ratio(eigen(LKK))
+rho.NN <- damping_ratio(eigen(LNN))
+rho.RR <- damping_ratio(eigen(LRR))
+rho.PP <- damping_ratio(eigen(LPP))
+
+glue::glue("
+           Damping ratio for Australia: {rho.AA}
+           Damping ratio for Senegal:   {rho.SS}
+           Damping ratio for Kenya:     {rho.KK}
+           Damping ratio for Niger:     {rho.NN}
+           Damping ratio for Russia:    {rho.RR}
+           Damping ratio for Singapore: {rho.PP}
+           ")
+```
+
+Based on these, I'd guess that Singapore is slowest to reach stability and Niger is fastest.
+
+Let's check
+
+```{r}
+proj_SS <- project_population(initial_pop = d$nKx[d$country == 'Senegal'],
+                              L =  LSS)
+proj_KK <- project_population(initial_pop = d$nKx[d$country == 'Kenya'],
+                              L =  LKK)
+proj_NN <- project_population(initial_pop = d$nKx[d$country == 'Niger'],
+                              L =  LNN)
+proj_RR <- project_population(initial_pop = d$nKx[d$country == 'Russia'],
+                              L =  LRR)
+proj_PP <- project_population(initial_pop = d$nKx[d$country == 'Singapore'],
+                              L =  LPP)
+```
+
+
+```{r}
+r_away_from_stable <- function(initial_pop,
+                               L,
+                               # we'll use a tolerance of 5 percent
+                               tol=0.05) {
+  
+  
+  proj <- project_population(initial_pop=initial_pop, 
+                             L=L)
+  eigen_out <- eigen(L)
+  
+  # this assumes a time-step of 5 years
+  stable_r <- log(Re(eigen_out$values[1]))/5
+  
+  # for each time step, calculate whether or not we are within tolerance of stable intrinsic growth rate
+  res <- proj$tot_pop %>% 
+    mutate(unstable = as.numeric(abs((R - stable_r)/stable_r) >= tol))
+  
+  # figure out the last year away from stability
+  last_unstable_idx <- ifelse(all(res$unstable[-1] == 0),
+                              0,
+                              max(which(res$unstable == 1)))
+  
+  stable_yr <- ifelse(last_unstable_idx < nrow(proj$tot_pop),
+                      proj$tot_pop$year[last_unstable_idx + 1],
+                      NA_real_)
+  
+  return(stable_yr)
+}
+
+r_away_from_stable(d$nKx[d$country == 'Niger'], LNN)
+```
+
+```{r}
+stableyr.AA <- r_away_from_stable(d$nKx[d$country == 'Australia'], LAA)
+stableyr.SS <- r_away_from_stable(d$nKx[d$country == 'Senegal'], LSS)
+stableyr.KK <- r_away_from_stable(d$nKx[d$country == 'Kenya'], LKK)
+stableyr.NN <- r_away_from_stable(d$nKx[d$country == 'Niger'], LNN)
+stableyr.RR <- r_away_from_stable(d$nKx[d$country == 'Russia'],LRR)
+stableyr.PP <- r_away_from_stable(d$nKx[d$country == 'Singapore'],LPP)
+
+glue::glue("
+           Stable year for Australia: {stableyr.AA}
+           Stable year for Senegal:   {stableyr.SS}
+           Stable year for Kenya:     {stableyr.KK}
+           Stable year for Niger:     {stableyr.NN}
+           Stable year for Russia:    {stableyr.RR}
+           Stable year for Singapore: {stableyr.PP}
+           ")
+```
+
+Compare these more directly
+
+```{r}
+compare_damping <-
+  tribble(~ country, ~ damping_ratio, ~ stable_yr,
+          'Australia', rho.AA, stableyr.AA,
+          'Senegal', rho.SS, stableyr.SS,
+          'Kenya', rho.KK, stableyr.KK,
+          'Niger', rho.NN, stableyr.NN,
+          'Russia', rho.RR, stableyr.RR,
+          'Singapore', rho.PP, stableyr.PP)
+
+compare_damping %>%
+  ggplot(.) +
+  geom_text(aes(x= stable_yr, y=damping_ratio, label=country)) +
+  xlab("Year of approximate stability") +
+  ylab("Damping ratio")
+```
+
+
+It looks like Niger does appear to reach stability the fastest - but Singapore is not the slowest.
+
+END SOLUTION

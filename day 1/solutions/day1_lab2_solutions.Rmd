@@ -266,6 +266,50 @@ proj_AA$tot_pop
 > we just did for Australia. Copy/adapt the code above to make a plot of the
 > trajectory of the total population size, growth rate and the age distributions for your projection.
 
+BEGIN SOLUTION:
+
+Let's pick Kenya.
+
+```{r}
+# make Leslie matrix with Kenyan rates
+LKA <- leslie(nLx = d$nLx[d$country=="Kenya"], 
+              nFx = d$nFx[d$country=="Kenya"])
+# project using Kenyan matrix and current population
+proj_KA <- project_population(initial_pop = d$nKx[d$country == 'Kenya'],
+                              L =  LKA)
+
+proj_KA$projection
+proj_KA$tot_pop
+```
+
+Plot the total population size:
+```{r}
+# plot total population over time 
+ggplot(data = proj_KA$tot_pop, aes(x = year, y = pop, group = 1)) +
+  geom_point() + geom_line()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Total population of Kenya over time")
+```
+
+the growth rate:
+```{r}
+# plot growth rate over time
+ggplot(data = proj_KA$tot_pop, aes(x = year, y = R, group = 1)) +
+  geom_point() + geom_line()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Growth rate of population of Kenya over time")
+```
+
+and age distribution:
+```{r}
+# plot proportion in each age group over time
+ggplot(data = proj_KA$projection, aes(x = year, y = proportion, group = age, color = age)) +
+  geom_point() + geom_line()+ 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position='bottom')+
+  ggtitle("Proportion of population of Kenya in each age group over time")
+```
+
+END SOLUTION
 
 > **Q1b**. In lecture, we looked at an expression for the number of people in
 > each age group of a stable population with growth rate $r$. We said
@@ -273,13 +317,63 @@ proj_AA$tot_pop
 > an expression for the fraction of the population in each age group of a
 > stable population, which we call $_nc_x$.
 
+BEGIN SOLUTION:
 
+By dividing both sides by the total population, $_{\infty}K_0(t)$,
+the left hand side becomes $_nc_x$.
+The first factor on the right-hand side is $B(t)/_{\infty}K_0(t)$,
+which is the birth rate $b$. So we have
+
+$$_nc_x(t) = b e^{-rx} {}_nL_x/l_0$$
+
+
+
+END SOLUTION
 
 > **Q1c**. See if you can estimate the intrinsic growth rate $r$ in the stable
 > population by comparing the size of age groups in your projection. (NB: there is
 > more than one way to do this.)
 
+BEGIN SOLUTION:
 
+We can find the intrinsic growth rate through the ratio of the proportion of age groups. 
+
+In a stable population, the proportion of an age group $_nc_x$ can be expressed as: 
+
+$$
+_nc_x = be^{-rx}\frac{_nL_x}{l_0}
+$$
+
+where $b$ is the crude birth rate and $r$ is the intrinsic growth rate.
+
+The ratio of the proportions of two age groups, for example, the age groups 0-5 and 5-10, can be thus expressed as:
+
+$$
+\frac{_5c_0}{_5c_5} = \frac{be^{-0r}\frac{_5L_0}{l_0}}{be^{-5r}\frac{_5L_5}{l_0}} = \frac{_5L_0}{e^{-5r}{_5L_5}}
+$$
+
+Solving for $r$:
+$$
+r = -\frac{1}{5}log(\frac{_5L_0}{\frac{_5c_0}{_5c_5}{_5L_5}}) 
+$$
+Values for $_nL_x$ are provided in the data. Values for $_nc_x$ can be extracted from the projected population after it stabilizes over time
+
+```{r}
+# extract values of ncx from the projected population in 2265, long after it stabilizes
+# extract values of nLx directly from the data
+# for two age groups, 0-5 and 5-10
+KA_stable <- proj_KA$projection %>% filter(year == 2265) %>% slice(1:2) %>% mutate(nLx = d$nLx[d$country=="Kenya"][1:2]) 
+KA_stable
+```
+
+```{r}
+# calculate r
+r <- -(1/5) * log(KA_stable$nLx[1]/(KA_stable$proportion[1]/KA_stable$proportion[2]*KA_stable$nLx[2]))
+r
+
+```
+
+We see that this value of $r$ is the same as the value calculated during the projection. 
   
 > **Q2a**. Now find a third country, and use the Leslie matrix from the country you
 > picked for (1) to project the population of the country from (1) forward for 50
@@ -287,6 +381,51 @@ proj_AA$tot_pop
 > third country. Does this population converge to the same size? The same growth
 > rate? The same age structure?
 
+BEGIN SOLUTION:
+
+Let's pick Singapore.
+```{r}
+# project using Kenyan rates and Singaporean initial population
+proj_SI <- project_population(initial_pop = d$nKx[d$country == 'Singapore'],
+                              L =  LKA)
+proj_SI$projection
+proj_SI$tot_pop
+```
+
+Plot the total population size:
+```{r}
+# plot total population over time 
+ggplot(data = proj_SI$tot_pop, aes(x = year, y = pop, group = 1)) +
+  geom_point() + geom_line()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Total population of Singapore over time")
+```
+
+growth rate:
+```{r}
+# plot growth rate over time
+ggplot(data = proj_SI$tot_pop, aes(x = year, y = R, group = 1)) +
+  geom_point() + geom_line()+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Growth rate of population of Singapore over time")
+```
+
+and age distribution:
+```{r}
+# plot proportion in each age group over time
+ggplot(data = proj_KA$projection, aes(x = year, y = proportion, group = age, color = age)) +
+  geom_point() + geom_line()+ 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), legend.position='bottom')+
+  ggtitle("Proportion of population of Singapore in each age group over time")
+```
+
+By comparing the plots to those from Q1a, we see that 
+
+1. the total population size are different
+2. their trajectories are similar (both grow exponentially). 
+3. the intrinsic growth rates and stable age distributions are exactly the same .
+
+END SOLUTION
 
 > **Q2b**. Look at the trajectory of the growth rate in
 > the projection from Q1 and the projection from Q2a. Which projection took longer
@@ -295,6 +434,12 @@ proj_AA$tot_pop
 > predictions by making projections using other combinations of Leslie matrices
 > and starting values.
  
+BEGIN SOLUTION:
+
+The projection using the Singaporean initial population in Q2a took longer to converge to stability. The difference between the initial growth rate and the intrinsic growth rate implied by the Leslie matrix affect the amount of time it takes to converge: the farther away the initial growth rate is from the intrinsic growth rate, the longer it takes to converge to stability. The difference between the initial Kenyan growth rate (0.02724) and the intrinsic growth rate implied by the Kenyan Leslie matrix (0.02376) is smaller than that between the initial Singaporean growth rate (0.01409) and the intrinsic growth rate. 
+
+END SOLUTION
+
 
 
 
