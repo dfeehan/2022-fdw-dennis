@@ -16,7 +16,7 @@ theme_set(theme_minimal())
 We will use the same data from the earlier exercises. 
 
 ```{r}
-d <- read_csv("bfdw_projection_data.csv") %>%
+d <- read_csv("../bfdw_projection_data.csv") %>%
   # let's quickly repeat a few calculations that we made in Lab 1
          # change the radix to 1
   mutate(nLx = nLx/10^5, 
@@ -314,6 +314,9 @@ adjusted_r %>%
 ```
 
 If you happen to know the NRR result, we can use it directly.
+
+$$NRR = \frac{\sum {_nF_x}\cdot {_nL_x} \cdot f_{fab}}{l_0}. $$
+
 To check
 
 ```{r}

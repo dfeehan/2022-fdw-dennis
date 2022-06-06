@@ -27,7 +27,7 @@ The dataset has values for $_nL_x$ (person-years lived between ages $x$ and $x+n
 Data are for females in 2015 and were obtained from the [World Health Organisation](http://apps.who.int/gho/data/node.main.687?lang=en) ($_nL_x$) and [United Nations Population Division](https://esa.un.org/unpd/wpp/) ($_nF_x$ and $_nK_x$). 
 
 ```{r}
-d <- read_csv("bfdw_projection_data.csv")
+d <- read_csv("../bfdw_projection_data.csv")
 ```
 
 Throughout this lab, we'll be making use of the `%>%` operator. This is like a 'pipe', which takes whatever is on the left hand side and feeds it forward into a function. For example, below we are taking our data `d`, filtering it to only include Australia, and then printing the head (the first six rows).

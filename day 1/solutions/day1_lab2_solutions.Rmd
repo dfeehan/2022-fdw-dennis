@@ -20,7 +20,7 @@ We will use the same data from the earlier exercises.
 First, we'll open up the data that we used in Lab 1.
 
 ```{r}
-d <- read_csv("bfdw_projection_data.csv") %>%
+d <- read_csv("../bfdw_projection_data.csv") %>%
   # let's quickly repeat a few calculations that we made in Lab 1
          # change the radix to 1
   mutate(nLx = nLx/10^5, 
